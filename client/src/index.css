@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@import "@fontsource-variable/archivo";
+
+@theme {
+  --font-sans: "Archivo Variable", "Segoe UI", system-ui, sans-serif;
+  --color-ink: #16222e;
+  --color-paper: #edf0ee;
+  --color-line: #cfd6d3;
+  --color-muted: #55656d;
+  --color-tape: #f5b800;
+}
+
+@layer components {
+  .campo {
+    @apply w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink
+      placeholder:text-muted/70 focus-visible:outline-2 focus-visible:outline-offset-1
+      focus-visible:outline-ink;
+  }
+  .boton-primario {
+    @apply rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition-colors
+      hover:bg-ink/85 focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-ink disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .boton-secundario {
+    @apply rounded-md border border-line bg-white px-4 py-2 text-sm font-semibold text-ink
+      transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-ink disabled:cursor-not-allowed disabled:opacity-50;
+  }
+}

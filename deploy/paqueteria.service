@@ -1,0 +1,14 @@
+[Unit]
+Description=Control de paqueteria (Express)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=admin-a
+WorkingDirectory=/home/admin-a/paqueteria/server
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
