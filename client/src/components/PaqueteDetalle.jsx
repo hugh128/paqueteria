@@ -65,7 +65,9 @@ export default function PaqueteDetalle({ codigo, onCerrar, onActualizado }) {
               {paquete.historial.map((h, i) => (
                 <li key={i}>
                   <EstadoBadge estado={h.estado} />
-                  <span className="ml-2 text-muted">{formatoFecha(h.fecha)}</span>
+                  <span className="ml-2 text-muted">
+                    {formatoFecha(h.fecha)}{h.usuario ? `, por ${h.usuario}` : ''}
+                  </span>
                 </li>
               ))}
             </ol>

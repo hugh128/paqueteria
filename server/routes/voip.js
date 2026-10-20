@@ -2,15 +2,10 @@ import { Router } from 'express';
 
 const router = Router();
 
-// Credenciales del teléfono web de cada sucursal, definidas en el .env:
-//   VOIP_<id>_WS, VOIP_<id>_USER, VOIP_<id>_PASS
-// Nota: la clave llega al navegador (es lo normal en un softphone web simple).
-// Para un sistema real se usarían credenciales temporales.
-router.get('/:sucursalId', (req, res) => {
-  const id = Number(req.params.sucursalId);
-  if (!Number.isInteger(id)) {
-    return res.status(400).json({ error: 'sucursal inválida' });
-  }
+// Credenciales del teléfono web de la sucursal en la que inició sesión el usuario.
+// Salen del .env: VOIP_<id>_WS, VOIP_<id>_USER, VOIP_<id>_PASS
+router.get('/', (req, res) => {
+  const id = req.auth.sucursalId;
   const ws = process.env[`VOIP_${id}_WS`];
   const usuario = process.env[`VOIP_${id}_USER`];
   const clave = process.env[`VOIP_${id}_PASS`];

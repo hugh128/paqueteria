@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import https from 'node:https';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pool } from './db.js';
+import { pool, asegurarEsquema } from './db.js';
+import { requireAuth } from './auth.js';
+import auth from './routes/auth.js';
 import paquetes from './routes/paquetes.js';
 import sucursales from './routes/sucursales.js';
 import voip from './routes/voip.js';
@@ -24,8 +26,9 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.use('/api/sucursales', sucursales);
-app.use('/api/paquetes', paquetes);
-app.use('/api/voip', voip);
+app.use('/api/auth', auth);
+app.use('/api/paquetes', requireAuth, paquetes);
+app.use('/api/voip', requireAuth, voip);
 
 // Frontend compilado (client/dist), servido por el mismo Express
 const dist = path.join(__dirname, '..', 'client', 'dist');
@@ -38,6 +41,12 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Error interno del servidor' });
 });
+
+try {
+  await asegurarEsquema();
+} catch (e) {
+  console.error('No se pudo preparar la base de datos:', e.message);
+}
 
 const port = process.env.PORT || 3000;
 const { HTTPS_KEY, HTTPS_CERT } = process.env;

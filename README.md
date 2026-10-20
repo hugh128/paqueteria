@@ -106,14 +106,57 @@ Cierra y vuelve a abrir el navegador. Cuando termines de probar, puedes quitarlo
 
 **7. Abre la aplicación:** <https://192.168.56.10:3000>. Debe tener candado.
 
+**8. Inicia sesión** con uno de los usuarios (ver la sección *Usuarios y sesión*, más abajo) y elige la sucursal.
+
 ### Qué probar
 
-1. **Paquetes:** registra uno (por ejemplo `PKG-001`, de A hacia B), ábrelo, cámbiale el estado y mira el historial.
-2. **Teléfono web:** debajo del botón amarillo debe decir *"Conectado como extensión 102"*. Pulsa *"Probar micrófono (eco)"* y acepta el permiso del micrófono: debes escucharte.
-3. **Llamada entre sucursales:** abre otra **ventana** del navegador con la misma dirección y cambia *"Esta sucursal"* a **Sucursal B**. Desde A pulsa *"Llamar a Sucursal B"*; en la ventana B aparece la llamada entrante: *"Contestar"*.
-4. **Con softphone (opcional):** instala [MicroSIP](https://www.microsip.org/), crea una cuenta con servidor `192.168.56.10`, usuario `101` y la contraseña que te pase el autor. Marca `200` o recibe llamadas del `100`.
+1. **Acceso:** entra como administrador a la Sucursal A. Prueba también entrar con un empleado a la sucursal que no es la suya: el sistema lo rechaza.
+2. **Paquetes:** registra uno (por ejemplo `PKG-001`, de A hacia B), ábrelo, cámbiale el estado y mira el historial, que muestra quién hizo cada cambio.
+3. **Teléfono web:** debajo del botón amarillo debe decir *"Conectado como extensión 102"*. Pulsa *"Probar micrófono (eco)"* y acepta el permiso del micrófono: debes escucharte.
+4. **Llamada entre sucursales:** abre otra **pestaña nueva** con la misma dirección (escribe la URL; no uses "Duplicar pestaña") e inicia sesión en la **Sucursal B**. Cada pestaña tiene su propia sesión. Desde A pulsa *"Llamar a Sucursal B"*; en la ventana B aparece la llamada entrante: *"Contestar"*.
+5. **Con softphone (opcional):** instala [MicroSIP](https://www.microsip.org/), crea una cuenta con servidor `192.168.56.10`, usuario `101` y la contraseña que te pase el autor. Marca `200` o recibe llamadas del `100`.
 
 Usa **audífonos**: ambas ventanas están en tu mismo equipo y, sin ellos, el audio se acopla.
+
+### Usuarios y sesión
+
+Para entrar hay que iniciar sesión con usuario, contraseña y la **sucursal** en la que se va a trabajar. La sesión dura 8 horas y es **por pestaña**: puedes tener una pestaña en la Sucursal A y otra en la B al mismo tiempo, y al cerrar la pestaña se cierra la sesión.
+
+| Rol | A qué sucursales puede entrar |
+| --- | --- |
+| `admin` | A cualquiera de las dos |
+| `empleado` | Solo a la suya |
+
+Los usuarios los crea el administrador del sistema desde la VM1 (la contraseña se pide por pantalla y no se ve al escribirla; si el usuario ya existe, se cambia su contraseña):
+
+```bash
+cd ~/paqueteria/server
+node scripts/crear-usuario.js admin "Administrador" admin
+node scripts/crear-usuario.js ana "Ana (Sucursal A)" empleado 1
+node scripts/crear-usuario.js luis "Luis (Sucursal B)" empleado 2
+```
+
+Las contraseñas te las pasa el autor por mensaje; no están en este repositorio.
+
+### Actualizar VMs que ya importaste (para tener el login)
+
+Si importaste las VMs antes de que existiera el login, actualízalas así. En Windows, desde la raíz del repositorio:
+
+```powershell
+git pull
+powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1
+```
+
+Luego, en la VM1:
+
+```bash
+cd ~/paqueteria/server
+echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env    # clave para firmar las sesiones
+sudo systemctl restart paqueteria
+node scripts/crear-usuario.js admin "Administrador" admin   # y los demás usuarios de arriba
+```
+
+La tabla de usuarios se crea sola al reiniciar el servicio; no hay que ejecutar SQL a mano.
 
 ---
 
@@ -220,6 +263,13 @@ sudo ufw allow 5060/udp && sudo ufw allow 8089/tcp && sudo ufw allow 10000:20000
 sudo ufw enable
 ```
 
+### Usuarios (el servicio ya creó la tabla al arrancar)
+
+```bash
+cd ~/paqueteria/server
+node scripts/crear-usuario.js admin "Administrador" admin
+```
+
 **VoIP:** `sudo apt install -y asterisk` instala Asterisk 22. **La configuración de Asterisk
 (`/etc/asterisk/pjsip.conf`, `extensions.conf`, `http.conf` y `rtp.conf`) no está incluida en este
 repositorio:** vive dentro de las VMs. Para reproducirla desde cero, usa las VMs como referencia.
@@ -234,12 +284,15 @@ paqueteria/
 │   └── src/
 │       ├── api/client.js        Todas las llamadas al backend
 │       ├── hooks/               useLlamada.js (teléfono web con SIP.js), useTimbre.js
-│       ├── components/          Header, BotonLlamar, PaqueteForm, PaqueteList, PaqueteDetalle
-│       └── App.jsx              Estado principal
+│       ├── components/          Login, Header, BotonLlamar, PaqueteForm, PaqueteList, PaqueteDetalle
+│       ├── Panel.jsx            Pantalla principal de la sucursal
+│       └── App.jsx              Decide entre el login y el panel
 ├── server/                      Backend (Express)
 │   ├── server.js                Arranque, /api/health, sirve client/dist, HTTP o HTTPS
-│   ├── db.js                    Conexión a PostgreSQL
-│   └── routes/                  paquetes.js, sucursales.js, voip.js
+│   ├── auth.js                  Contraseñas (scrypt), tokens de sesión y middleware requireAuth
+│   ├── db.js                    Conexión a PostgreSQL y creación de la tabla de usuarios
+│   ├── routes/                  auth.js, paquetes.js, sucursales.js, voip.js
+│   └── scripts/crear-usuario.js Crea usuarios o cambia su contraseña
 ├── database/schema.sql          Tablas y datos iniciales
 ├── deploy/
 │   ├── deploy.ps1               Compila y sube a la VM1 desde Windows
@@ -254,17 +307,26 @@ Para agregar una función: ruta nueva en `server/routes/`, función en `client/s
 
 | Método | Ruta | Descripción |
 | --- | --- | --- |
-| GET | `/api/health` | Estado del servidor y la base de datos |
-| GET | `/api/sucursales` | Lista de sucursales |
-| GET | `/api/paquetes` | Lista de paquetes (filtro opcional `?sucursal=ID`) |
-| GET | `/api/paquetes/:codigo` | Paquete con su historial |
-| POST | `/api/paquetes` | Registra un paquete |
-| PATCH | `/api/paquetes/:id/estado` | Cambia el estado (`Recibido`, `En tránsito`, `Entregado`) |
-| GET | `/api/voip/:sucursalId` | Configuración del teléfono web de la sucursal |
+| GET | `/api/health` | Estado del servidor y la base de datos (público) |
+| GET | `/api/sucursales` | Lista de sucursales (público) |
+| POST | `/api/auth/login` | Inicia sesión: `{ usuario, clave, sucursalId }`; devuelve el token (público) |
+| GET | `/api/auth/me` | Datos de la sesión actual |
+| GET | `/api/paquetes` | Paquetes que salen de la sucursal de la sesión o llegan a ella |
+| GET | `/api/paquetes/:codigo` | Paquete con su historial (cualquier sucursal puede rastrearlo) |
+| POST | `/api/paquetes` | Registra un paquete; el origen es siempre la sucursal de la sesión |
+| PATCH | `/api/paquetes/:id/estado` | Cambia el estado; solo la sucursal de origen o de destino |
+| GET | `/api/voip` | Configuración del teléfono web de la sucursal de la sesión |
+
+Todas las rutas, salvo las marcadas como públicas, exigen la cabecera `Authorization: Bearer <token>`.
 
 ```bash
 curl -k https://localhost:3000/api/health
 curl -k https://localhost:3000/api/sucursales
+
+# Con sesión (guarda el token y úsalo en las demás rutas)
+curl -k -X POST https://localhost:3000/api/auth/login -H "Content-Type: application/json" \
+  -d '{"usuario":"admin","clave":"TU_CLAVE","sucursalId":1}'
+curl -k https://localhost:3000/api/paquetes -H "Authorization: Bearer EL_TOKEN"
 ```
 
 ## Puertos
@@ -289,6 +351,10 @@ curl -k https://localhost:3000/api/sucursales
 | "No se pudo registrar la extensión" | La clave del `.env` (`VOIP_*_PASS`) no coincide con la de `pjsip.conf`. |
 | Se oye el eco pero no hay audio entre sucursales | Revisa el trunk: `sudo asterisk -rx "pjsip show contacts"` debe mostrar `Avail`. |
 | No suena el timbre | El navegador bloquea el sonido si no hubo un clic en la página. El aviso visual y el título de la pestaña sí funcionan. |
+| "Usuario o contraseña incorrectos" | El usuario no existe o la contraseña es otra. Créalo o cambia su contraseña con `node scripts/crear-usuario.js` (ver *Usuarios y sesión*). |
+| "Tu usuario no tiene acceso a esa sucursal" | Es un usuario `empleado` y eligió la sucursal que no es la suya. Usa la suya o un usuario `admin`. |
+| "Tu sesión venció" | Pasaron 8 horas, o el servicio se reinició sin `JWT_SECRET` en el `.env` (usa una clave temporal). Agrégala y vuelve a iniciar sesión. |
+| El login da "Error interno" | Mira `journalctl -u paqueteria -n 30 --no-pager`; suele ser la conexión a la base de datos. |
 | Las IP de las VMs no son `192.168.56.x` | Tu red Host-Only usa otro rango. Ajusta `/etc/netplan/60-hostonly.yaml` y las IP del `.env` y de Asterisk. |
 
 Para ver lo que ocurre en Asterisk en vivo: `sudo asterisk -rvvv`, y dentro `pjsip set logger on`.
@@ -300,7 +366,10 @@ Es un entorno de laboratorio. Para uso real habría que mejorar:
 - El certificado es autofirmado; en producción se usaría una autoridad reconocida con un dominio.
 - La clave del teléfono web llega al navegador; lo ideal son credenciales temporales por usuario.
 - El trunk entre las dos centrales no va cifrado (faltaría SIP sobre TLS y SRTP).
-- La aplicación no tiene inicio de sesión de usuarios.
+- El inicio de sesión no limita los intentos fallidos (no hay bloqueo temporal) ni tiene recuperación de contraseña.
+- La sesión se guarda en el navegador (`sessionStorage`) como un token de 8 horas; no hay forma de cerrarla desde el servidor.
 - Sin un servidor TURN/STUN, WebRTC solo funciona dentro de la red local.
+
+Las contraseñas de los usuarios se guardan con hash (scrypt), nunca en texto plano.
 
 **No subas al repositorio** el `.env` ni claves o certificados (`.gitignore` ya excluye `.env`, `node_modules` y `client/dist`).

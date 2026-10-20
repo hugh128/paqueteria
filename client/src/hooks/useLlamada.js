@@ -36,7 +36,7 @@ export function useLlamada(sucursalId, audioRef) {
 
       let cfg;
       try {
-        cfg = await api.voipConfig(sucursalId);
+        cfg = await api.voipConfig();
       } catch (e) {
         if (!cancelado) { setEstado('error'); setMensaje(e.message); }
         return;
