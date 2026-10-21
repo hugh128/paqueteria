@@ -4,7 +4,7 @@ export default function PaqueteList({ paquetes, seleccionado, onSeleccionar }) {
   if (paquetes.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-line bg-white p-6 text-sm text-muted">
-        No hay paquetes que mostrar. Registra el primero con el formulario.
+        No hay paquetes que mostrar. Envía el primero con el formulario.
       </p>
     );
   }

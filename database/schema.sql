@@ -13,7 +13,7 @@ CREATE TABLE paquetes (
   descripcion TEXT,
   sucursal_origen INT NOT NULL REFERENCES sucursales(id),
   sucursal_destino INT NOT NULL REFERENCES sucursales(id),
-  estado VARCHAR(20) NOT NULL DEFAULT 'Recibido'
+  estado VARCHAR(20) NOT NULL DEFAULT 'En tránsito'
     CHECK (estado IN ('Recibido','En tránsito','Entregado')),
   creado_en TIMESTAMP DEFAULT NOW(),
   actualizado_en TIMESTAMP DEFAULT NOW()

@@ -3,7 +3,18 @@ import { pool } from '../db.js';
 
 // Todas las rutas exigen sesión (ver server.js): req.auth = { uid, sucursalId }
 const router = Router();
-const ESTADOS = ['Recibido', 'En tránsito', 'Entregado'];
+const ESTADOS = ['En tránsito', 'Recibido', 'Entregado'];
+
+// Ciclo de vida del paquete: una sola dirección, un paso a la vez.
+//   En tránsito : la sucursal de ORIGEN lo registra y lo envía (así nace todo paquete)
+//   Recibido    : la sucursal de DESTINO confirma que el paquete llegó a su sucursal
+//   Entregado   : la sucursal de DESTINO lo entregó a la persona destinataria
+// Después de "Entregado" ya no hay cambios. El origen solo registra el envío y observa.
+const ESTADO_INICIAL = 'En tránsito';
+const FLUJO = {
+  'En tránsito': { siguiente: 'Recibido',  responsable: 'sucursal_destino', quien: 'la sucursal de destino' },
+  'Recibido':    { siguiente: 'Entregado', responsable: 'sucursal_destino', quien: 'la sucursal de destino' },
+};
 
 const SELECT_BASE = `
   SELECT p.*, so.nombre AS origen, sd.nombre AS destino
@@ -40,7 +51,7 @@ router.get('/:codigo', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Registrar paquete: el origen siempre es la sucursal de la sesión
+// Enviar (registrar) un paquete: el origen siempre es la sucursal de la sesión y nace "En tránsito"
 router.post('/', async (req, res, next) => {
   const { codigo, remitente, destinatario, descripcion, sucursal_destino } = req.body ?? {};
   const sucursal_origen = req.auth.sucursalId;
@@ -55,10 +66,10 @@ router.post('/', async (req, res, next) => {
     await client.query('BEGIN');
     const { rows } = await client.query(
       `INSERT INTO paquetes (codigo, remitente, destinatario, descripcion,
-                             sucursal_origen, sucursal_destino)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+                             sucursal_origen, sucursal_destino, estado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [codigo, remitente, destinatario, descripcion ?? null,
-       sucursal_origen, sucursal_destino]);
+       sucursal_origen, sucursal_destino, ESTADO_INICIAL]);
     await client.query(
       'INSERT INTO historial_estados (paquete_id, estado, usuario_id) VALUES ($1, $2, $3)',
       [rows[0].id, rows[0].estado, req.auth.uid]);
@@ -74,7 +85,9 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// Actualizar estado: solo la sucursal de origen o la de destino del paquete
+// Avanzar el estado. Reglas (ver FLUJO arriba):
+//  - solo se puede pasar al estado siguiente (no se salta ni se retrocede)
+//  - cada paso lo hace únicamente la sucursal responsable de ese paso (ver FLUJO)
 router.patch('/:id/estado', async (req, res, next) => {
   const id = Number(req.params.id);
   const { estado } = req.body ?? {};
@@ -84,19 +97,39 @@ router.patch('/:id/estado', async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query(
-      `UPDATE paquetes SET estado = $1, actualizado_en = NOW()
-       WHERE id = $2 AND (sucursal_origen = $3 OR sucursal_destino = $3)
-       RETURNING *`, [estado, id, req.auth.sucursalId]);
-    if (rows.length === 0) {
+    // FOR UPDATE bloquea la fila: si dos personas hacen clic a la vez, la segunda espera
+    // y ve el estado ya cambiado en vez de aplicar el cambio dos veces.
+    const { rows } = await client.query('SELECT * FROM paquetes WHERE id = $1 FOR UPDATE', [id]);
+    const p = rows[0];
+    const sucursal = req.auth.sucursalId;
+
+    const rechazar = async (codigo, error) => {
       await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Paquete no encontrado en esta sucursal' });
+      return res.status(codigo).json({ error });
+    };
+
+    if (!p || (p.sucursal_origen !== sucursal && p.sucursal_destino !== sucursal)) {
+      return rechazar(404, 'Paquete no encontrado en esta sucursal');
     }
+    const paso = FLUJO[p.estado];
+    if (!paso) {
+      return rechazar(409, 'El paquete ya fue entregado y su estado no se puede cambiar');
+    }
+    if (estado !== paso.siguiente) {
+      return rechazar(409, `Desde "${p.estado}" el único paso permitido es "${paso.siguiente}"`);
+    }
+    if (p[paso.responsable] !== sucursal) {
+      return rechazar(403, `Solo ${paso.quien} puede marcarlo como "${paso.siguiente}"`);
+    }
+
+    const act = await client.query(
+      'UPDATE paquetes SET estado = $1, actualizado_en = NOW() WHERE id = $2 RETURNING *',
+      [estado, id]);
     await client.query(
       'INSERT INTO historial_estados (paquete_id, estado, usuario_id) VALUES ($1, $2, $3)',
       [id, estado, req.auth.uid]);
     await client.query('COMMIT');
-    res.json(rows[0]);
+    res.json(act.rows[0]);
   } catch (e) {
     await client.query('ROLLBACK');
     next(e);

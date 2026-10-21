@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { api, ESTADOS } from '../api/client.js';
+import { api, ESTADOS, FLUJO } from '../api/client.js';
 import EstadoBadge from './EstadoBadge.jsx';
 
 const formatoFecha = (f) =>
   new Date(f).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
 
-export default function PaqueteDetalle({ codigo, onCerrar, onActualizado }) {
+export default function PaqueteDetalle({ codigo, sucursalId, onCerrar, onActualizado }) {
   const [paquete, setPaquete] = useState(null);
   const [error, setError] = useState('');
 
@@ -29,6 +29,23 @@ export default function PaqueteDetalle({ codigo, onCerrar, onActualizado }) {
     }
   }
 
+  // Qué puede hacer esta sucursal con el paquete (el servidor lo vuelve a comprobar)
+  const paso = paquete ? FLUJO[paquete.estado] : null;
+  const esOrigen = paquete?.sucursal_origen === sucursalId;
+  const esDestino = paquete?.sucursal_destino === sucursalId;
+  const puedeAvanzar = Boolean(paso) && paquete[paso.responsable] === sucursalId;
+  const indice = paquete ? ESTADOS.indexOf(paquete.estado) : 0;
+
+  let aviso = '';
+  if (paquete && !paso) {
+    aviso = 'El paquete ya fue entregado. No hay más cambios.';
+  } else if (paquete && !puedeAvanzar) {
+    const quien = paso.responsable === 'sucursal_origen' ? paquete.origen : paquete.destino;
+    aviso = esOrigen || esDestino
+      ? `Esperando a que ${quien} lo marque como ${paso.siguiente.toLowerCase()}.`
+      : 'Este paquete no sale de ni llega a tu sucursal: solo puedes consultarlo.';
+  }
+
   return (
     <section className="rounded-lg border-2 border-ink bg-white p-4">
       <div className="flex items-start justify-between gap-3">
@@ -48,14 +65,31 @@ export default function PaqueteDetalle({ codigo, onCerrar, onActualizado }) {
             {paquete.descripcion && (
               <div><dt className="inline text-muted">Detalle: </dt><dd className="inline">{paquete.descripcion}</dd></div>
             )}
-            <div className="pt-2"><EstadoBadge estado={paquete.estado} /></div>
-            <div className="flex flex-wrap gap-2 pt-2">
-              {ESTADOS.map((e) => (
-                <button key={e} type="button" disabled={e === paquete.estado}
-                        onClick={() => cambiarEstado(e)} className="boton-secundario">
-                  Marcar como {e.toLowerCase()}
-                </button>
+            <div className="pt-2">
+            <ol className="flex flex-wrap items-center gap-1 text-xs font-semibold" aria-label="Progreso del paquete">
+              {ESTADOS.map((e, i) => (
+                <li key={e} aria-current={i === indice ? 'step' : undefined} className="flex items-center gap-1">
+                  <span className={`rounded px-2 py-1 ${i <= indice ? 'bg-ink text-white' : 'bg-paper text-muted'}`}>
+                    {i + 1}. {e}
+                  </span>
+                  {i < ESTADOS.length - 1 && <span aria-hidden="true" className="text-muted">→</span>}
+                </li>
               ))}
+            </ol>
+            </div>
+            {(esOrigen || esDestino) && (
+              <div className="text-muted">
+                Tu sucursal es el {esOrigen ? 'origen' : 'destino'} de este paquete.
+              </div>
+            )}
+            <div className="pt-2">
+              {puedeAvanzar ? (
+                <button type="button" onClick={() => cambiarEstado(paso.siguiente)} className="boton-primario">
+                  Marcar como {paso.siguiente.toLowerCase()}
+                </button>
+              ) : (
+                <p className="rounded-md bg-paper p-2 text-sm text-muted">{aviso}</p>
+              )}
             </div>
           </dl>
 

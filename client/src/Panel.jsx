@@ -75,6 +75,7 @@ export default function Panel({ sesion, onSalir }) {
           {seleccionado && (
             <PaqueteDetalle
               codigo={seleccionado}
+              sucursalId={sucursalId}
               onCerrar={() => setSeleccionado(null)}
               onActualizado={cargarPaquetes}
             />

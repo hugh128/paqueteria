@@ -25,4 +25,6 @@ export async function asegurarEsquema() {
     )`);
   await pool.query(
     'ALTER TABLE historial_estados ADD COLUMN IF NOT EXISTS usuario_id INT REFERENCES usuarios(id)');
+  // Todo paquete nace "En tránsito" (lo registra la sucursal que lo envía)
+  await pool.query("ALTER TABLE paquetes ALTER COLUMN estado SET DEFAULT 'En tránsito'");
 }

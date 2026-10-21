@@ -1,7 +1,14 @@
 // Único punto de contacto con el backend. Todas las rutas empiezan con /api.
 // La sesión (token) se guarda en sessionStorage: es por pestaña, así que puedes tener
 // una pestaña en la Sucursal A y otra en la B al mismo tiempo.
-export const ESTADOS = ['Recibido', 'En tránsito', 'Entregado'];
+export const ESTADOS = ['En tránsito', 'Recibido', 'Entregado'];
+
+// Ciclo del paquete (el servidor es quien lo hace cumplir; esto solo decide qué mostrar):
+//   nace "En tránsito" (lo envía el origen) -> el DESTINO lo marca "Recibido" -> el DESTINO lo marca "Entregado"
+export const FLUJO = {
+  'En tránsito': { siguiente: 'Recibido', responsable: 'sucursal_destino' },
+  'Recibido': { siguiente: 'Entregado', responsable: 'sucursal_destino' },
+};
 
 const CLAVE_TOKEN = 'paqueteria.token';
 export const getToken = () => sessionStorage.getItem(CLAVE_TOKEN);
