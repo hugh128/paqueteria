@@ -118,6 +118,16 @@ Cierra y vuelve a abrir el navegador. Cuando termines de probar, puedes quitarlo
 
 Usa **audífonos**: ambas ventanas están en tu mismo equipo y, sin ellos, el audio se acopla.
 
+### Actualización de paquetes en vivo
+
+Los envíos y cambios de estado se actualizan automáticamente en las dos sucursales,
+incluido el historial del paquete abierto. El panel muestra el estado de su conexión
+en vivo y reconecta si se interrumpe. Este canal SSE es independiente de las llamadas.
+El ciclo actual es: el origen envía «En tránsito» y el destino marca «Recibido» y
+después «Entregado».
+
+Detalles y pruebas: [Actualización mediante SSE](docs/actualizacion-en-vivo.md).
+
 ### Usuarios y sesión
 
 Para entrar hay que iniciar sesión con usuario, contraseña y la **sucursal** en la que se va a trabajar. La sesión dura 8 horas y es **por pestaña**: puedes tener una pestaña en la Sucursal A y otra en la B al mismo tiempo, y al cerrar la pestaña se cierra la sesión.
@@ -208,6 +218,10 @@ powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1
 ```
 
 Compila el frontend, sube `server/`, `client/dist` y `deploy/` a la VM1, instala dependencias y reinicia el servicio. El `.env` de la VM **nunca se sobrescribe**. Pide la contraseña de la VM varias veces. Para ver los registros: `journalctl -u paqueteria -f`.
+
+La instalación local del frontend omite la auditoría automática de npm para que
+una caída de ese servicio externo no retrase el despliegue. La revisión de
+vulnerabilidades se ejecuta por separado con `npm --prefix client audit`.
 
 ---
 
@@ -316,6 +330,7 @@ Para agregar una función: ruta nueva en `server/routes/`, función en `client/s
 | POST | `/api/paquetes` | Registra un paquete; el origen es siempre la sucursal de la sesión |
 | PATCH | `/api/paquetes/:id/estado` | Cambia el estado; solo la sucursal de origen o de destino |
 | GET | `/api/voip` | Configuración del teléfono web de la sucursal de la sesión |
+| GET | `/api/eventos` | Canal SSE autenticado: avisa de cambios de paquetes y sincroniza al reconectar |
 
 Todas las rutas, salvo las marcadas como públicas, exigen la cabecera `Authorization: Bearer <token>`.
 

@@ -19,7 +19,7 @@ const clearToken = () => sessionStorage.removeItem(CLAVE_TOKEN);
 let alExpirar = () => {};
 export const alSesionExpirada = (fn) => { alExpirar = fn; };
 
-async function request(path, options = {}) {
+async function request(path, options = {}, stream = false) {
   const token = getToken();
   const res = await fetch(`/api${path}`, {
     ...options,
@@ -28,12 +28,13 @@ async function request(path, options = {}) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+  if (stream && res.ok) return res;
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && token && path !== '/auth/login') {
     clearToken();
     alExpirar();
   }
-  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(data.error || `Error ${res.status}`), { status: res.status });
   return data;
 }
 
@@ -50,6 +51,7 @@ export const api = {
   logout: clearToken,
 
   // Datos
+  eventos: (signal) => request('/eventos', { signal }, true),
   sucursales: () => request('/sucursales'),
   voipConfig: () => request('/voip'),
   listarPaquetes: () => request('/paquetes'),

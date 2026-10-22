@@ -4,6 +4,7 @@ import Header from './components/Header.jsx';
 import PaqueteForm from './components/PaqueteForm.jsx';
 import PaqueteList from './components/PaqueteList.jsx';
 import PaqueteDetalle from './components/PaqueteDetalle.jsx';
+import { useEventos } from './hooks/useEventos.js';
 
 // Pantalla principal de la sucursal en la que se inició sesión
 export default function Panel({ sesion, onSalir }) {
@@ -13,18 +14,22 @@ export default function Panel({ sesion, onSalir }) {
   const [seleccionado, setSeleccionado] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [error, setError] = useState('');
+  const { revision, estado: estadoEventos } = useEventos();
+  const [actualizacion, setActualizacion] = useState(0);
 
   useEffect(() => {
     api.sucursales().then(setSucursales).catch((e) => setError(e.message));
   }, []);
 
-  const cargarPaquetes = useCallback(() => {
-    api.listarPaquetes()
-      .then((lista) => { setPaquetes(lista); setError(''); })
-      .catch((e) => setError(e.message));
-  }, []);
+  const cargarPaquetes = useCallback(() => setActualizacion((n) => n + 1), []);
 
-  useEffect(cargarPaquetes, [cargarPaquetes]);
+  useEffect(() => {
+    let activo = true;
+    api.listarPaquetes()
+      .then((lista) => { if (activo) { setPaquetes(lista); setError(''); } })
+      .catch((e) => { if (activo) setError(e.message); });
+    return () => { activo = false; };
+  }, [revision, actualizacion]);
 
   const destinoLlamada = sucursales.find((s) => s.id !== sucursalId);
 
@@ -55,6 +60,13 @@ export default function Panel({ sesion, onSalir }) {
         </aside>
 
         <section className="space-y-4">
+          <p role="status" className="text-xs text-muted">
+            {estadoEventos === 'conectado'
+              ? 'Paquetes: actualización en vivo activa.'
+              : estadoEventos === 'conectando'
+                ? 'Paquetes: conectando actualización en vivo…'
+                : 'Paquetes: conexión en vivo interrumpida. Reconectando…'}
+          </p>
           {error && (
             <p role="alert" className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
               No se pudo conectar con el servidor: {error}
@@ -74,7 +86,9 @@ export default function Panel({ sesion, onSalir }) {
 
           {seleccionado && (
             <PaqueteDetalle
+              key={seleccionado}
               codigo={seleccionado}
+              revision={revision}
               sucursalId={sucursalId}
               onCerrar={() => setSeleccionado(null)}
               onActualizado={cargarPaquetes}

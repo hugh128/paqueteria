@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
+import { avisarCambioPaquetes } from '../eventos.js';
 
 // Todas las rutas exigen sesión (ver server.js): req.auth = { uid, sucursalId }
 const router = Router();
@@ -74,6 +75,7 @@ router.post('/', async (req, res, next) => {
       'INSERT INTO historial_estados (paquete_id, estado, usuario_id) VALUES ($1, $2, $3)',
       [rows[0].id, rows[0].estado, req.auth.uid]);
     await client.query('COMMIT');
+    avisarCambioPaquetes();
     res.status(201).json(rows[0]);
   } catch (e) {
     await client.query('ROLLBACK');
@@ -129,6 +131,7 @@ router.patch('/:id/estado', async (req, res, next) => {
       'INSERT INTO historial_estados (paquete_id, estado, usuario_id) VALUES ($1, $2, $3)',
       [id, estado, req.auth.uid]);
     await client.query('COMMIT');
+    avisarCambioPaquetes();
     res.json(act.rows[0]);
   } catch (e) {
     await client.query('ROLLBACK');

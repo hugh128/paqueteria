@@ -5,27 +5,34 @@ import EstadoBadge from './EstadoBadge.jsx';
 const formatoFecha = (f) =>
   new Date(f).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
 
-export default function PaqueteDetalle({ codigo, sucursalId, onCerrar, onActualizado }) {
+export default function PaqueteDetalle({ codigo, revision, sucursalId, onCerrar, onActualizado }) {
   const [paquete, setPaquete] = useState(null);
   const [error, setError] = useState('');
+  const [errorConsulta, setErrorConsulta] = useState('');
+  const [actualizacion, setActualizacion] = useState(0);
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     let activo = true;
-    setPaquete(null);
-    setError('');
     api.obtenerPaquete(codigo)
-      .then((p) => activo && setPaquete(p))
-      .catch((e) => activo && setError(e.message));
+      .then((p) => { if (activo) { setPaquete(p); setErrorConsulta(''); } })
+      .catch((e) => { if (activo) setErrorConsulta(e.message); });
     return () => { activo = false; };
-  }, [codigo]);
+  }, [codigo, revision, actualizacion]);
 
   async function cambiarEstado(estado) {
+    if (guardando) return;
+    setGuardando(true);
+    setError('');
     try {
       await api.cambiarEstado(paquete.id, estado);
-      setPaquete(await api.obtenerPaquete(codigo));
       onActualizado();
     } catch (e) {
       setError(e.message);
+    } finally {
+      // También ante un conflicto: volver a consultar el estado real del servidor.
+      setActualizacion((n) => n + 1);
+      setGuardando(false);
     }
   }
 
@@ -53,8 +60,8 @@ export default function PaqueteDetalle({ codigo, sucursalId, onCerrar, onActuali
         <button type="button" onClick={onCerrar} className="boton-secundario">Cerrar</button>
       </div>
 
-      {error && <p role="alert" className="mt-2 text-sm font-medium text-red-700">{error}</p>}
-      {!paquete && !error && <p className="mt-2 text-sm text-muted">Cargando…</p>}
+      {(error || errorConsulta) && <p role="alert" className="mt-2 text-sm font-medium text-red-700">{error || errorConsulta}</p>}
+      {!paquete && !error && !errorConsulta && <p className="mt-2 text-sm text-muted">Cargando…</p>}
 
       {paquete && (
         <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -84,7 +91,7 @@ export default function PaqueteDetalle({ codigo, sucursalId, onCerrar, onActuali
             )}
             <div className="pt-2">
               {puedeAvanzar ? (
-                <button type="button" onClick={() => cambiarEstado(paso.siguiente)} className="boton-primario">
+                <button type="button" disabled={guardando} onClick={() => cambiarEstado(paso.siguiente)} className="boton-primario">
                   Marcar como {paso.siguiente.toLowerCase()}
                 </button>
               ) : (
