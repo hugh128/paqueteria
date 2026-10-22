@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool, asegurarEsquema } from './db.js';
 import { requireAuth } from './auth.js';
+import { abrirEventos } from './eventos.js';
 import auth from './routes/auth.js';
 import paquetes from './routes/paquetes.js';
 import sucursales from './routes/sucursales.js';
@@ -28,6 +29,7 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/sucursales', sucursales);
 app.use('/api/auth', auth);
 app.use('/api/paquetes', requireAuth, paquetes);
+app.get('/api/eventos', requireAuth, abrirEventos);
 app.use('/api/voip', requireAuth, voip);
 
 // Frontend compilado (client/dist), servido por el mismo Express

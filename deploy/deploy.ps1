@@ -10,7 +10,10 @@ $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
 Write-Host "1/4 Compilando el frontend..." -ForegroundColor Cyan
-npm --prefix client install
+# La auditoría consulta un servicio externo y puede demorar minutos si falla.
+# Ejecutarla por separado: npm --prefix client audit
+npm --prefix client install --no-audit
+if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de dependencias del frontend" }
 npm --prefix client run build
 if ($LASTEXITCODE -ne 0) { throw "Falló la compilación del frontend" }
 
